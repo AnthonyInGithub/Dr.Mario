@@ -2,7 +2,7 @@
 # This file contains our implementation of Dr Mario.
 #
 # Student 1: Tianxiang Zhu, 1009802536
-# Student 2: Bo Xu, Student Number (if applicable)
+# Student 2: Bo Xu, 1009839196
 #
 # We assert that the code submitted here is entirely our own 
 # creation, and will indicate otherwise when it is not.
@@ -14,7 +14,7 @@
 # - Display height in pixels: 256
 # - Base Address for Display: 0x10008000 ($gp)
 ##############################################################################
-
+ 
     .data
 ##############################################################################
 # Immutable Data
@@ -57,6 +57,7 @@ shape_matrix_color: .word 4
 # s1: Y of current capsule
 # s2: rotating status of current capsule
 # s3: color
+# s5: score
 
 ##############################################################################
 # Code
@@ -262,6 +263,19 @@ clean_up_screen:
     end_clean_up_screen:
     
     jr $ra
+
+###############################################################
+# Handle William's part
+###############################################################
+
+# This is used to clear the four 
+clear_line:
+
+
+
+
+
+
 
 ###############################################################
 # Handle Key Board Input Logic
