@@ -28,6 +28,8 @@ ADDR_KBRD:
 BASE_COLOR:
     .word 0x000000
 
+TESTING_COLOR:
+    .word 0xffffff
 ##############################################################################
 # Mutable Data
 ##############################################################################
@@ -41,6 +43,7 @@ ending_x: .word 22
 ending_y: .word 30
 initial_x: .word 12
 initial_y: .word 3
+number_or_virus: .word 8
 
 current_color_1: .word 0x000000
 current_color_2: .word 0x000000
@@ -49,6 +52,8 @@ shape_matrix: .word current_color_1, current_color_2, BASE_COLOR, BASE_COLOR,   
 shape_matrix_row: .word 4
 shape_matrix_color: .word 4
 
+# width: 22, height 26. total: 22*26*4 = 2288
+current_map: .space 2288
 
 ##############################################################################
 # Permanent Register
@@ -67,10 +72,14 @@ shape_matrix_color: .word 4
     # Run the game.
 main:
     # Initialize the game
+    jal initialize_current_map
     jal draw_background
     
     jal initialize_new_capsule
     jal draw_capsule
+    jal generate_virus
+    
+    jal draw_current_map
     
 
 game_loop:
@@ -83,13 +92,14 @@ game_loop:
 	# 2. Draw the screen
 	jal clean_up_screen
 	jal draw_background
+	jal draw_current_map
 	jal draw_capsule
 	
 	# methods to implement: canMove, lockCapsuleInPlace, clearLines(lines of 4 in vertical/horizontal direction), check_survival(whether capsule reach top)
 	#feature: easy: 1, 2, 4, 5. Hard: 1, 5
 	
 	#grouping(Wiliam): easy: 1, 2, clearLines, Hard:1, easy:4
-	#grouping(Anthony): easy5, Hard: 5, canMove, lockCapsuleInPlace, check_survival
+	#grouping(Anthony): easy5, Hard: 5, canMove, lockCapsuleInPlace, check_survival, generate_virus
 
 	#concatenate: easy:4, check_survival
 	#ending:  easy: 5
@@ -239,6 +249,19 @@ choose_color:
     add $t3, $t3, $a0           # update the offset a0 to t3
     lw $s3, 0($t3)              # load randomly a value of color into t4
     
+    jr $ra
+    
+# randomly choose one virus color from virus_colors and store in s3. 
+choose_virus_color:
+    li $v0, 42                  # generate random numbers                                
+    li $a0, 0                   # lower bound is 0
+    li $a1, 3                   # upper bound is 3 (number generated will be in [0,2]
+    syscall                     # the return value will be stored in a0
+    
+    la $t3, virus_colors          # load the colors array into t3
+    sll $a0, $a0, 2             # calculate the memory offset of a0
+    add $t3, $t3, $a0           # update the offset a0 to t3
+    lw $s3, 0($t3)              # load randomly a value of color into t4
     
     jr $ra
 
@@ -262,6 +285,103 @@ clean_up_screen:
     end_clean_up_screen:
     
     jr $ra
+
+generate_virus:
+    li $t2, 0
+    generate_virus_loop:
+    li $v0, 42                  # generate random numbers of x position value of virus
+    li $a0, 0                   # the starting x is not 0 in actual map, but is 0 in logic
+    lw $a1, ending_x            # load ending x
+    lw $a3, starting_x          # load starting x to correctly finding the right x position
+    sub $a1, $a1, $a3
+    syscall                     # the return value will be stored in a0
+    
+    la $t0, current_map         # loading the current map address
+    sll $t1, $a0, 2             # calculate the x offset of current virus
+    add $t1, $t0, $t1
+    
+    li $v0, 42                  # generate random numbers of y position value of virus
+    li $a0, 0                   # the starting y is not 0, but MIPS only support generate starting from 0, which means we need to manually calculate the random number.
+    lw $a1, ending_y            # load ending y
+    lw $a3, starting_y
+    sub $a1, $a1, $a3
+    syscall                     # the return value will be stored in a0       
+    
+    li $a3, 100                 #correct offset: 4 * 25(height)
+    mul $a0, $a0, $a3           # calculate y offset in current map and add to t1
+    add $t1, $a0, $t1           
+    
+    addi $sp, $sp, -4           # typical way of calling a function, choose a random virus color and store in s3
+    sw $ra, 0($sp)              
+    jal choose_virus_color
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    
+    sw $s3, 0($t1)
+    
+    addi $t2, $t2, 1
+    
+    lw $t3, number_or_virus
+    beq $t2, $t3 end_generate_virus
+    j generate_virus_loop
+    
+    end_generate_virus:
+    jr $ra
+
+draw_current_map:
+    lw $t0, ADDR_DSPL
+    lw $t1, starting_x
+    lw $t3, starting_y
+    
+    la $t6, current_map
+    li $t7, 0 #t7 is the counter for locating current x in map
+    li $t8, 0 #t8 is the counter for locating current y in map
+    
+    lw $t2, ending_x
+    sub $t2, $t2, $t1 # calcuate the ending x in current map
+    lw $t4, ending_y
+    sub $t4, $t4, $t3 # calcuate the ending y in current map
+    addi $t4, $t4, 1
+    
+    sll $t1, $t1, 2 # calculating correct x, y offset
+    sll $t3, $t3, 7
+    
+    lw $t5, ADDR_DSPL # t5 stands for starting location in map
+    add $t5, $t1, $t5
+    add $t5, $t3, $t5
+    
+    li $t9, 0 #t9 standing for current location in bit map relative to current map
+    add $t9, $t9, $t5
+    
+    draw_current_map_loop:
+        
+        lw $s3, 0($t6) # load the current color into t8
+        sw $s3, 0($t9)
+        addi $t6, $t6, 4 #update current map 
+        addi $t9, $t9, 4 #update bitmap location
+        beq $t7, $t2, update_y_when_drawing_current_map
+        addi $t7, $t7, 1
+        
+        j draw_current_map_loop
+        
+    update_y_when_drawing_current_map:
+        li $t7, 0           # reset logical x position
+        addi $t9, $t5, 0      # reset then calculte current bit map position
+        sll $t1, $t7, 2  #reuse t1, t3, now t1, t3 is the current x, y offset from the t5
+        sll $t3, $t8, 7
+        add $t9, $t9, $t1
+        add $t9, $t9, $t3
+        beq $t8, $t4, end_drawing_current_map
+        addi $t8, $t8, 1    #update logical y position
+        j draw_current_map_loop
+    
+    end_drawing_current_map:
+    
+    
+    
+    jr $ra
+    
+    
 
 ###############################################################
 # Handle Key Board Input Logic
@@ -321,5 +441,20 @@ initialize_new_capsule:
     
     sw $s3, current_color_2
     
+    jr $ra
+    
+initialize_current_map:
+    la $t0, current_map          # Load base address of the array
+    lw $t1, TESTING_COLOR        # Load the address of base color into $t1
+    li $t2, 572            # Number of elements
+
+    fill_current_map:
+    beq $t2, 0, finish_filling_current_map       # Exit loop when all elements are filled
+    sw $t1, 0($t0)         # Store the address of A in the current array element
+    addi $t0, $t0, 4       # Move to the next element
+    subi $t2, $t2, 1       # Decrement the counter
+    j fill_current_map            # Repeat
+
+    finish_filling_current_map:
     jr $ra
     
