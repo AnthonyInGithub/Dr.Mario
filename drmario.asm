@@ -64,6 +64,13 @@ current_map: .space 2200
 
 overflow_detector: .word 0x0000ff
 
+#0: No direction (independent block).
+#1: Connected to the left.
+#2: Connected to the right.
+#3: Connected above.
+#4: Connected below.
+connection_direction_map: .space 2200
+
 #IMPORTANT: the value in shape matrix are address of a color, whereas value in current map are value of a color
 
 ##############################################################################
@@ -84,13 +91,15 @@ overflow_detector: .word 0x0000ff
 main:
     # Initialize the game
     jal initialize_current_map
+    jal initialize_direction_map
     jal draw_background
     
     jal initialize_new_capsule
     jal draw_capsule
     jal generate_virus
     
-    jal Testing_Logical_Map
+    #jal Testing_Logical_Map
+    
     
     jal draw_current_map
     
@@ -107,7 +116,8 @@ game_loop:
     jal draw_background
 	jal draw_current_map
 	jal draw_capsule
-	jal Testing_Logical_Map
+	#jal Testing_Logical_Map
+	
 	
 	# methods to implement: canMove, lockCapsuleInPlace, clearLines(lines of 4 in vertical/horizontal direction), check_survival(whether capsule reach top)
 	#feature: easy: 1, 2, 4, 5. Hard: 1, 5
@@ -389,7 +399,6 @@ draw_current_map:
 keyboard_input:                     # A key is pressed
     lw $a0, 4($t0)                  # Load second word from keyboard  
     
-    beq $a0, 0x71, quit     # Check if the key q was pressed
     beq $a0, 0x77, pressW
     beq $a0, 0x61, pressA   
     beq $a0, 0x73, pressS
@@ -417,8 +426,16 @@ pressA:
 pressS:
     jal determine_can_fall
     lw $t1, can_fall
-    beq $t1, $zero, input_ends                   #t1 == 0 mean can not fall
+    beq $t1, $zero, falling_ends                   #t1 == 0 mean can not fall
     addi $s1, $s1, 1
+    b input_ends
+    
+    falling_ends:
+        jal lock_capsule_in_place
+        jal initialize_new_capsule
+        jal update_direction_map
+        jal check_survival
+    
     b input_ends
 pressD:
     jal determine_can_move_right
@@ -430,9 +447,6 @@ pressD:
 ###############################################################
 # Handle Game Rule Logic
 #############################################################
-quit:
-	li $v0, 10                      # Quit gracefully
-	syscall
 
 initialize_new_capsule:
     lw $s0, initial_x_logical #initialize position of capsule
@@ -478,6 +492,7 @@ determine_can_move_left:
     addi $t1, $t1, -1                           # manually check the left position
     move $t2, $s1
     bltz $t1, can_not_move_left                 # determine whether t1 is less than 0
+    bltz $t2, able_to_move_left                 # edge case at initial position
     
     la $t3, current_map
     mul $t2, $t2, 88                            #calculate the correct address in current map by x, y. Calculate by width * memory offset = 22 * 4
@@ -540,6 +555,7 @@ determine_can_move_right:
     determine_can_move_right_rotation_status_checked:
     
     move $t2, $s1
+    bltz $t2, able_to_move_right                #edge case at initial position
     
     addi $t8, $t1, -21                          # determine for right edge
     bgtz $t8, can_not_move_right                 # determine whether t1 is greater than or equal to 22 
@@ -635,6 +651,7 @@ determine_can_rotate:
     move $t1, $s0
     move $t2, $s1
     
+    
     li $t9, 2                                   # Load the divisor (2) into $t9(determine the current rotating status to determine whether should detect the +1 position or +2 position of current location))
     divu $s2, $t9                               # Unsigned division: LO = quotient, HI = remainder
     mfhi $t9                                    # Move the remainder (y % 4) from HI to $t0
@@ -694,7 +711,6 @@ generate_virus:
     
     la $t0, current_map         # loading the current map address
     sll $t1, $a0, 2             # calculate the x offset of current virus
-    add $t1, $t0, $t1
     
     li $v0, 42                  # generate random numbers of y position value of virus
     li $a0, 0                   # the starting y is not 0, but MIPS only support generate starting from 0, which means we need to manually calculate the random number.
@@ -706,7 +722,8 @@ generate_virus:
     
     li $a3, 88                #correct offset: 4 * 22(width)
     mul $a0, $a0, $a3           # calculate y offset in current map and add to t1
-    add $t1, $a0, $t1           
+    
+    add $t1, $a0, $t1           # t1 is now the offset from current map starting address
     
     addi $sp, $sp, -4           # typical way of calling a function, choose a random virus color and store in s3
     sw $ra, 0($sp)              
@@ -714,7 +731,13 @@ generate_virus:
     lw $ra, 0($sp)
     addi $sp, $sp, 4
     
-    sw $s3, 0($t1)
+    add $t0, $t0, $t1                           #save the virus color into current map
+    sw $s3, 0($t0)
+    
+    la $t6, connection_direction_map            #save the 5 to connection_direction map (5 stands for virus)
+    add $t6, $t6, $t1
+    li $t5, 5
+    sw $t5, 0($t6)
     
     addi $t2, $t2, 1
     
@@ -725,10 +748,155 @@ generate_virus:
     end_generate_virus:
     jr $ra
 
+lock_capsule_in_place:
+    move $t1, $s0
+    move $t2, $s1
+    
+    li $t9, 2                                   # Load the divisor (2) into $t9(determine the current rotating status is in horizontal or vertical)
+    divu $s2, $t9                               # Unsigned division: LO = quotient, HI = remainder
+    mfhi $t9                                    # Move the remainder (y % 4) from HI to $t0
+    
+    la $t3, current_map
+    mul $t2, $t2, 88                            #calculate the correct address in current map by x, y. Calculate by width * memory offset = 22 * 4
+    sll $t1, $t1, 2                             # calculate the correct offset for $t1
+    add $t3, $t3, $t2
+    add $t3, $t3, $t1
+    
+    la $t4, shape_matrix
+    sll $t5, $s2, 4                             # calcualte the current shape matrix top left corner color
+    add $t4, $t4, $t5                           
+    
+    lw $t6, 0($t4)                              # return an address to the color
+    lw $t6, 0($t6)
+    
+    sw $t6, 0($t3)                              # save the top left corner
+    
+    beq $t9, 1, lock_vertical_capsule
+    
+    j lock_horizontal_capsule
+    
+    lock_vertical_capsule:
+        addi $t4, $t4, 8                            # update to the next colored square in shape matrix
+        lw $t6, 0($t4)                              # return an address to the color
+        lw $t6, 0($t6)
+        
+        addi $t3, $t3, 88                           # y+= 1
+        
+        sw $t6, 0($t3)
+        j end_lock_capsule
+        
+    lock_horizontal_capsule:
+        addi $t4, $t4, 4                            # update to the next colored square in shape matrix
+        lw $t6, 0($t4)                              # return an address to the color
+        lw $t6, 0($t6)
+        
+        addi $t3, $t3, 4                           # x+= 1
+        
+        sw $t6, 0($t3)
+        j end_lock_capsule
+        
+    
+    end_lock_capsule:
+    jr $ra
+
+initialize_direction_map:
+    la $t0, connection_direction_map          # Load base address of the array
+    li $t1, 0               # Load immediate value 0
+    li $t2, 550            # Number of elements
+
+    fill_direction_map:
+    beq $t2, 0, finish_filling_direction_map       # Exit loop when all elements are filled
+    sw $t1, 0($t0)         # Store the address of A in the current array element
+    addi $t0, $t0, 4       # Move to the next element
+    subi $t2, $t2, 1       # Decrement the counter
+    j fill_direction_map            # Repeat
+
+    finish_filling_direction_map:
+    jr $ra
+    
+
+update_direction_map:
+    move $t1, $s0
+    move $t2, $s1
+    
+    li $t9, 2                                   # Load the divisor (2) into $t9(determine the current rotating status is in horizontal or vertical)
+    divu $s2, $t9                               # Unsigned division: LO = quotient, HI = remainder
+    mfhi $t9                                    # Move the remainder (y % 4) from HI to $t0
+    
+    la $t3, connection_direction_map
+    mul $t2, $t2, 88                            #calculate the correct address in current map by x, y. Calculate by width * memory offset = 22 * 4
+    sll $t1, $t1, 2                             # calculate the correct offset for $t1
+    add $t3, $t3, $t2
+    add $t3, $t3, $t1
+
+    beq $t9, 1, lock_vertical_capsule_direction
+    
+    j lock_horizontal_capsule_direction
+    
+    lock_vertical_capsule_direction:
+        li $t4, 4
+        sw $t4, 0($t3)
+        
+        addi $t3, $t3, 88                           # y+= 1
+        
+        li $t4, 3
+        sw $t4, 0($t3)
+        
+        j end_lock_capsule_direction
+        
+    lock_horizontal_capsule_direction:
+        li $t4, 2
+        sw $t4, 0($t3)
+        
+        addi $t3, $t3, 4                           # x+= 1
+        
+        li $t4, 1
+        sw $t4, 0($t3)
+        j end_lock_capsule_direction
+        
+    
+    end_lock_capsule_direction:
+    jr $ra
+
+check_survival:
+    li $t1, 9
+    li $t2, 0
+    
+    la $t3, current_map
+    mul $t2, $t2, 88                            #calculate the correct address in current map by x, y. Calculate by width * memory offset = 22 * 4
+    sll $t1, $t1, 2                             # calculate the correct offset for $t1
+    add $t3, $t3, $t2
+    add $t3, $t3, $t1
+    
+    li $t4, 6                                   # counter for bottle neck space
+    
+    check_survival_loop:
+        lw $t5, BASE_COLOR
+        lw $t6, 0($t3)
+        bne $t5, $t6, end_game
+        
+        addi $t3, $t3, 4
+        addi $t4, $t4, -1
+        beq $t4, $zero, end_check_survival
+        j check_survival_loop
+    
+    end_check_survival:
+    jr $ra
+
+end_game:
+    li $v0, 10
+    syscall
+
+        
+
+        
+    
+
 #Testing_Logical_Map:
     #la $t0, current_map
     #addi $t0, $t0, 88
     #li $t1, 0x00ff00
     #sw $t1, 0($t0)
     #jr $ra
+    
     
