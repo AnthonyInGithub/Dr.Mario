@@ -44,14 +44,24 @@ initial_x: .word 12
 initial_y: .word 4
 initial_x_logical: .word 10
 initial_y_logical: .word -2
-number_or_virus: .word 8
+number_or_virus: .word 5
 stack_top: .word 0 
+blocks_cleared: .word 0
+blocks_moved: .word 0
 
 current_color_1: .word 0x000000
 current_color_2: .word 0x000000
 
 sound_effect_notes: .word 72, 69, 64, 72, 48  # MIDI numbers for C5, A4, E4, C5, C3
 sound_effect_notes_duration: .word 100, 150, 200, 300, 500
+
+song_notes: .word 70, 71, 70, 71, 69, 67, 67, 69, 70, 71, 69, 67, 67, 60,     70, 71, 70, 71, 69, 67, 67, 69, 59, 59, 59, 60, 60, 60, 60, 61, 61, 61, 60, 62, 62, 62, 60,    70, 71, 70, 71, 69, 67, 67, 69, 70, 71, 69, 67, 67, 60,   70, 71, 70, 71, 69, 67, 67, 69, 70,    ,80, 74, 71, 60, 69, 86, 81, 76, 57, 74, 60, 75, 73, 59, 58,     60
+song_durations: .word 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 400, 400,   200, 200, 200, 200, 200, 200, 200, 200, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100,    200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 400, 400,   200, 200, 200, 200, 200, 200, 200, 200,    100, 100, 100, 100, 200, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100,    100
+song_volumes: .word 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 0,     100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 0, 100, 100, 100, 100, 100, 100, 0, 100, 100, 100, 0,    100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 0,   100, 100, 100, 100, 100, 100, 100, 100,    ,100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 0, 100, 100, 100, 100,   0
+song_intervals: .word 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 12, 12,   6, 6, 6, 6, 6, 6, 6, 6, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 12, 12,    6, 6, 6, 6, 6, 6, 6, 6,       3, 3, 3, 3, 6, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,   3
+current_note_waiting_interval: .word 0
+current_note_number: .word 0
+total_number_notes: .word 75
 
 shape_matrix: .word current_color_1, current_color_2, BASE_COLOR, BASE_COLOR,         current_color_1,BASE_COLOR, current_color_2, BASE_COLOR,          current_color_2, current_color_1, BASE_COLOR, BASE_COLOR,             current_color_2,BASE_COLOR, current_color_1, BASE_COLOR,  #Row4
 shape_matrix_row: .word 4
@@ -87,6 +97,7 @@ connection_direction_map: .space 2200
 # s1: Y of current capsule in logical map
 # s2: rotating status of current capsule
 # s3: color
+
 
 ##############################################################################
 # Code
@@ -124,6 +135,7 @@ game_loop:
 	jal draw_current_map
 	jal draw_capsule
 	#jal Testing_Logical_Map
+	jal play_theme_song
 	
 	
 	# methods to implement: canMove, lockCapsuleInPlace, clearLines(lines of 4 in vertical/horizontal direction), check_survival(whether capsule reach top)
@@ -154,7 +166,7 @@ draw_horizontal_line:
     add $t5, $t5, $t2           # Add the X offset to $t2 ($t2 now has the starting location of the line in bitmap memory)
     # Calculate the final point in the line (start point + length x 4)
     sll $t4, $t4, 2             # Multiply the length by 4
-    add $t6, $t4, $t5           # Calculate the address of the final point in the line, store result in $t6.
+    add $t6, $t4, $t5           # Calculate the address of the final point in the line, store result in $t6..
     # Start the loop
     line_start_horizontal:
         sw $t1, 0($t5)              # Draw a pixel at the current location in the bitmap
@@ -402,7 +414,7 @@ draw_current_map:
     
     jr $ra
 
-#a0: action type: 0: rotate, 1: dropping(press w), 2: lock_capsule_in_place 3: remove row or column, 4: game_over
+#a0: action type: 0: rotate, 1: dropping(press s), 2: lock_capsule_in_place 3: remove row or column, 4: game_over
 play_effect_sound:
     la $t1, sound_effect_notes
     la $t2, sound_effect_notes_duration
@@ -412,9 +424,9 @@ play_effect_sound:
     add $t2, $t2, $t3
     
     lw $a0, 0($t1)      # retrieve the current note and duration
-    lw $a1, 0($t2)
-    li $a2, 123
-    li $a3, 100
+    lw $a1, 0($t2)      
+    li $a2, 123         # instrument type
+    li $a3, 100         # volume
     
     li $v0, 31           # Syscall to play sound effect
     syscall
@@ -422,65 +434,215 @@ play_effect_sound:
     
     jr $ra
 
+play_theme_song:
+    
+    lw $t3, current_note_number
+    lw $t4, current_note_waiting_interval
+    
+    beq $t4, 0, play_song_note
+    
+    addi $t4, $t4, -1
+    sw $t4, current_note_waiting_interval
+    
+    j end_play_song
+    
+    play_song_note:
+        la $t0, song_notes
+        la $t1, song_durations
+        la $t2, song_volumes
+        
+        sll $t7, $t3, 2
+        
+        add $a0, $t0, $t7       # load parameter for calling song
+        add $a1, $t1, $t7
+        add $a3, $t2, $t7
+        
+        lw $a0, 0($a0)
+        lw $a1, 0($a1)
+        li $a2, 0
+        lw $a3, 0($a3)
+        
+        li $v0, 31           # Syscall to play sound effect
+        syscall
+        
+        
+        la $t6, song_intervals
+        add $t6, $t6, $t7
+        lw $t4, 0($t6)
+        sw $t4, current_note_waiting_interval
+        
+        addi $t3, $t3, 1
+        
+        lw $t5, total_number_notes
+        beq $t3, $t5, back_to_song_origin
+        sw $t3, current_note_number
+        j end_play_song
+        
+    back_to_song_origin:
+        sw $zero, current_note_number
+        
+    end_play_song:
+    jr $ra
+        
+        
+        
+###############################################################
+# Handle Key Board Input Logic
+###############################################################
+keyboard_input:                     # A key is pressed
+    lw $a0, 4($t0)                  # Load second word from keyboard  
+    
+    beq $a0, 0x77, pressW
+    beq $a0, 0x61, pressA   
+    beq $a0, 0x73, pressS
+    beq $a0, 0x64, pressD
+    
+    b input_ends
+
+pressW:
+    jal determine_can_rotate
+    lw $t1, can_rotate
+    beq $t1, $zero, input_ends                   #t1 == 0 mean can not rotate
+    
+    addi $s2, $s2, 1      # s2 = s2 + 1
+    li $t1, 4             # Load the divisor (4) into $t1
+    divu $s2, $t1         # Unsigned division: LO = quotient, HI = remainder
+    mfhi $s2              # Move the remainder (y % 4) from HI to $t0
+    
+    
+    li $a0, 0             #parameter for play effect sound
+    jal play_effect_sound
+    
+    b input_ends
+pressA:
+    
+    jal determine_can_move_left
+    lw $t1, can_move_left
+    beq $t1, $zero, input_ends                   #t1 == 0 mean can not move left
+    addi $s0, $s0, -1
+    b input_ends
+pressS:
+    jal determine_can_fall
+    lw $t1, can_fall
+    beq $t1, $zero, falling_ends                   #t1 == 0 mean can not fall
+    addi $s1, $s1, 1
+    
+    li $a0, 1             #parameter for play effect sound
+    jal play_effect_sound
+    
+    b input_ends
+    
+    falling_ends:
+        jal lock_capsule_in_place
+        jal update_direction_map
+        jal clear_the_virus
+        jal initialize_new_capsule
+        jal check_survival
+        
+        li $a0, 2             #parameter for play effect sound
+        jal play_effect_sound
+    
+    b input_ends
+pressD:
+    jal determine_can_move_right
+    lw $t1, can_move_right
+    beq $t1, $zero, input_ends                   #t1 == 0 mean can not move right
+    addi $s0, $s0, 1
+    b input_ends
+    
+###############################################################
+# Handle Game Rule Logic
+#############################################################
+
 clear_the_virus:
-    # Step 1: Scan and mark blocks to clear
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+
+clear_virus_loop:
+    # initialize blocks_cleared and blocks_moved to 0
+    li $t0, 0
+    sw $t0, blocks_cleared
+    sw $t0, blocks_moved
+
+    # initiaze the stack
     jal initialize_stack
+    
+    # scan and mark the blocks
     jal scan_for_lines_horizontal
     jal scan_for_lines_vertical
 
-    # Step 2: Clear the marked blocks
+    # check if there some blocks need to clear
+    lw $t0, stack_top
+    blez $t0, clear_virus_done    # if stack is 0, skip
+
+    # set blocks_cleared to  1
+    li $t0, 1
+    sw $t0, blocks_cleared
+
+    # clear the marked block
     jal clear_marked_blocks
 
-    # Step 3: Apply gravity
+    # apply the gravity
     jal apply_gravity
 
+    #  apply_gravity set blocks_moved 
+
+    # check blocks_cleared and blocks_moved 
+    lw $t0, blocks_cleared
+    lw $t1, blocks_moved
+    or $t2, $t0, $t1           #if any mark is 1, loop
+    bne $t2, $zero, clear_virus_loop
+
+clear_virus_done:
+
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
     jr $ra
-    
     
     # initialize the stack 
 initialize_stack:
-    la $t8, stack_base   # the base address of stack 
+
     li $t9, 0            
     sw $t9, stack_top
     jr $ra
 
-# push to stack
 push_to_stack:
-    addi $sp, $sp, -16
+    addi $sp, $sp, -4
+    
     sw $ra, 0($sp)
-    sw $a0, 4($sp)
 
-    la $t8, stack_base
-    lw $t9, stack_top
-    sll $t9, $t9, 2        # calculate the offset
-    add $t8, $t8, $t9      # calculate the address 
-    sw $a0, 0($t8)         # push into the stack 
-    lw $t9, stack_top                               
-    addi $t9, $t9, 1       # stack plus 1
-    sw $t9, stack_top
+    la $t0, stack_base
+    lw $t1, stack_top
+    sll $t2, $t1, 2          # $t2 = stack_top * 4 (offset)
+    add $t0, $t0, $t2        # Address to store the new element
+    sw $a0, 0($t0)           # Store the value in $a0 onto the stack
+    addi $t1, $t1, 1         # stack_top += 1
+    sw $t1, stack_top
 
     lw $ra, 0($sp)
-    lw $a0, 4($sp)
-    addi $sp, $sp, 16
+    addi $sp, $sp, 4
     jr $ra
 
-# pop the stack 
 pop_from_stack:
-    addi $sp, $sp, -16
+    addi $sp, $sp, -4
     sw $ra, 0($sp)
 
-    lw $t8, stack_top
-    blez $t9, stack_empty      # if stack  <= 0 back
-    addi $t9, $t9, -1          # stack -1
-    sw $t9, stack_top
-    la $t8, stack_base
-    sll $t9, $t9, 2           
-    add $t8, $t8, $t9        
-    lw $v0, 0($t8)          
+    lw $t0, stack_top
+    blez $t0, stack_empty     # If stack_top <= 0, stack is empty
+    addi $t0, $t0, -1         # stack_top -= 1
+    sw $t0, stack_top
+    la $t1, stack_base
+    sll $t2, $t0, 2           # $t2 = stack_top * 4 (offset)
+    add $t1, $t1, $t2         # Address of the top element
+    lw $v0, 0($t1)            # Load the value from the stack into $v0
+    j pop_done
 
 stack_empty:
+    li $v0, -1                # Return -1 or any invalid value to indicate empty stack
+
+pop_done:
     lw $ra, 0($sp)
-    addi $sp, $sp, 16
+    addi $sp, $sp, 4
     jr $ra
     
 scan_for_lines_horizontal:
@@ -495,76 +657,84 @@ scan_for_lines_horizontal:
     li $t1, 22           # Number of columns
     li $t2, 25           # Number of rows
 
-horizontal_scan_loop:
-    bge $s0, 25, end_horizontal_scan  # If row exceeds max, stop
-    li $s1, 0                          # Reset column index for each row
-
-horizontal_check_loop:
-    bge $s1, 22, next_horizontal_row  # If column exceeds max, go to next row
-
-    # Load current block color
-    mul $t3, $s0, 22                  # t3 = row * num_columns
-    add $t3, $t3, $s1                  # t3 = (row * num_columns) + column
-    sll $t3, $t3, 2                    # t3 = t3 * 4 (byte offset)
-    add $t3, $t0, $t3                  # t3 = map_base + offset
-    lw $t4, 0($t3)                     # Load color
-
-    # Skip if the block is empty
-    beqz $t4, next_horizontal_col
-
-    # Match consecutive blocks
-    li $s2, 1                          # Match counter = 1
-    move $t5, $s1                      # Start matching from current column
-
-match_horizontal_blocks:
-    addi $t5, $t5, 1                   # Next column
-    bge $t5, 22, horizontal_match_done # If out of bounds, stop matching
-
-    # Load next block color
-    mul $t6, $s0, 22                 # t6 = row * num_columns
-    add $t6, $t6, $t5                  # t6 = (row * num_columns) + temp_col
-    sll $t6, $t6, 2                    # t6 = t6 * 4 (byte offset)
-    add $t6, $t0, $t6                  # t6 = map_base + offset
-    lw $t7, 0($t6)                     # Load next color
-
-    # Check if the colors are in the same group
-    move $a0, $t4
-    move $a1, $t7
-    jal same_group
-    beqz $v0, horizontal_match_done    # If not in the same group, stop
-
-    addi $s2, $s2, 1                   # Increment match counter
-    j match_horizontal_blocks
-
-horizontal_match_done:
-    blt $s2, 4, next_horizontal_col    # If less than 4 matches, skip
-    add $t2, $s2, $zero
-    bge $s2, 4, push_all_to_mark
-
-push_all_to_mark:
-    blez $t2, next_horizontal_col
-    move $a0, $t1
-    jal push_to_stack
-    sll $t1, $t1, 2
-    sub $t2, $t2, 1
-    add $s1, $s1, 1
-    jal push_all_to_mark
+    horizontal_scan_loop:
+        bge $s0, 25, end_horizontal_scan  # If row exceeds max, stop
+        li $s1, 0                          # Reset column index for each row
     
-next_horizontal_col:
-    addi $s1, $s1, 1                   # Next column
-    j horizontal_check_loop
+    horizontal_check_loop:
+        bge $s1, 22, next_horizontal_row  # If column exceeds max, go to next row
+    
+        # Load current block color
+        mul $t3, $s0, 22                  # t3 = row * num_columns
+        add $t3, $t3, $s1                  # t3 = (row * num_columns) + column
+        sll $t3, $t3, 2                    # t3 = t3 * 4 (byte offset)
+        
+        
+        add $t3, $t0, $t3                  # t3 = map_base + offset
+        lw $t4, 0($t3)                     # Load color
+    
+        # Skip if the block is empty
+        beq $t4, $zero, next_horizontal_col
+    
+        # Match consecutive blocks
+        li $s2, 1                          # Match counter = 1
+        move $t5, $s1                      # Start matching from current column
+    
+    match_horizontal_blocks:
+        addi $t5, $t5, 1                   # Next column
+        bge $t5, 22, horizontal_match_done # If out of bounds, stop matching
+    
+        # Load next block color
+        mul $t6, $s0, 22                 # t6 = row * num_columns
+        add $t6, $t6, $t5                  # t6 = (row * num_columns) + temp_col
+        sll $t6, $t6, 2                    # t6 = t6 * 4 (byte offset)
+        add $t6, $t0, $t6                  # t6 = map_base + offset
+        lw $t7, 0($t6)                     # Load next color
+    
+        # Check if the colors are in the same group
+        move $a0, $t4
+        move $a1, $t7
+        jal same_group
+        beqz $v0, horizontal_match_done    # If not in the same group, stop
+    
+        addi $s2, $s2, 1                   # Increment match counter
+        j match_horizontal_blocks
+    
+    horizontal_match_done:
+    blt $s2, 4, next_horizontal_col    # If less than 4 matches, skip
 
-next_horizontal_row:
-    addi $s0, $s0, 1                   # Next row
-    j horizontal_scan_loop
+    # Start from the current column ($s1) and mark all matching blocks
+    move $t5, $s1                      # $t5 = starting column
+    add $t6, $s1, $s2                  # $t6 = ending column (exclusive)
 
-end_horizontal_scan:
-    lw $ra, 0($sp)
-    lw $s0, 4($sp)
-    lw $s1, 8($sp)
-    lw $s2, 12($sp)
-    addi $sp, $sp, 16
-    jr $ra
+    mark_horizontal_blocks:
+    bge $t5, $t6, next_horizontal_col  # If we've marked all blocks, move to next column
+
+    # Calculate the index of the block to mark
+    mul $t7, $s0, 22                   # t7 = row * num_columns
+    add $t7, $t7, $t5                  # t7 = (row * num_columns) + column
+    # Push index onto the stack
+    move $a0, $t7
+    jal push_to_stack
+
+    addi $t5, $t5, 1                   # Move to the next column
+    j mark_horizontal_blocks
+        
+    next_horizontal_col:
+        addi $s1, $s1, 1                   # Next column
+        j horizontal_check_loop
+    
+    next_horizontal_row:
+        addi $s0, $s0, 1                   # Next row
+        j horizontal_scan_loop
+    
+    end_horizontal_scan:
+        lw $ra, 0($sp)
+        lw $s0, 4($sp)
+        lw $s1, 8($sp)
+        lw $s2, 12($sp)
+        addi $sp, $sp, 16
+        jr $ra
  
 scan_for_lines_vertical:
     addi $sp, $sp, -16
@@ -575,8 +745,6 @@ scan_for_lines_vertical:
 
     la $t0, current_map  # Load the base address of the map
     li $s0, 0            # Start at column 0
-    li $t1, 22           # Number of columns
-    li $t2, 25           # Number of rows
 
 vertical_scan_loop:
     bge $s0, 22, end_vertical_scan  # If column exceeds max, stop
@@ -589,56 +757,63 @@ vertical_check_loop:
     mul $t3, $s1, 22                  # t3 = row * num_columns
     add $t3, $t3, $s0                 # t3 = (row * num_columns) + column
     sll $t3, $t3, 2                   # t3 = t3 * 4 (byte offset)
-    add $t3, $t0, $t3                 # t3 = map_base + offset
-    lw $t4, 0($t3)                    # Load color
+    add $t4, $t0, $t3                 # t4 = map_base + offset
+    lw $t5, 0($t4)                    # Load color
 
     # Skip if the block is empty
-    beqz $t4, next_vertical_row
+    beq $t5,$zero, increment_row
 
     # Match consecutive blocks
     li $s2, 1                         # Match counter = 1
-    move $t5, $s1                     # Start matching from current row
+    move $t6, $s1                     # Start matching from current row
 
 match_vertical_blocks:
-    addi $t5, $t5, 1                  # Next row
-    bge $t5, 25, vertical_match_done  # If out of bounds, stop matching
+    addi $t6, $t6, 1                  # Next row
+    bge $t6, 25, vertical_match_done  # If out of bounds, stop matching
 
     # Load next block color
-    mul $t6, $t5, 22                  # t6 = row * num_columns
-    add $t6, $t6, $s0                 # t6 = (row * num_columns) + column
-    sll $t6, $t6, 2                   # t6 = t6 * 4 (byte offset)
-    add $t6, $t0, $t6                 # t6 = map_base + offset
-    lw $t7, 0($t6)                    # Load next color
+    mul $t7, $t6, 22                  # t7 = row * num_columns
+    add $t7, $t7, $s0                 # t7 = (row * num_columns) + column
+    sll $t7, $t7, 2                   # t7 = t7 * 4 (byte offset)
+    add $t8, $t0, $t7                 # t8 = map_base + offset
+    lw $t9, 0($t8)                    # Load next color
 
     # Check if the colors are in the same group
-    move $a0, $t4
-    move $a1, $t7
+    move $a0, $t5
+    move $a1, $t9
     jal same_group
-    beqz $v0, vertical_match_done     # If not in the same group, stop
+    beq $v0, $zero, vertical_match_done     # If not in the same group, stop
 
     addi $s2, $s2, 1                  # Increment match counter
     j match_vertical_blocks
 
 vertical_match_done:
-    blt $s2, 4, next_vertical_row     # If less than 4 matches, skip
-    add $t2, $s2, $zero
-    bge $s2, 4, push_all_to_mark_vertical
+    blt $s2, 4, increment_row     # If less than 4 matches, skip
 
-push_all_to_mark_vertical:
-    blez $t2, next_vertical_row
-    move $a0, $t1
+    # Mark all matching blocks
+    move $t6, $s1                      # $t6 = starting row
+    add $t7, $s1, $s2                  # $t7 = ending row (exclusive)
+
+mark_vertical_blocks:
+    bge $t6, $t7, increment_row        # If we've marked all blocks, move to next row
+
+    # Calculate the index of the block to mark
+    mul $t8, $t6, 22                   # t8 = row * num_columns
+    add $t8, $t8, $s0                  # t8 = (row * num_columns) + column
+
+    # Push index onto the stack
+    move $a0, $t8
     jal push_to_stack
-    sll $t1, $t1, 2
-    sub $t2, $t2, 1
-    add $s1, $s1, 1
-    jal push_all_to_mark_vertical
 
-next_vertical_row:
-    addi $s1, $s1, 1                  # Next row
+    addi $t6, $t6, 1                   # Move to the next row
+    j mark_vertical_blocks
+
+increment_row:
+    addi $s1, $s1, 1                   # Next row
     j vertical_check_loop
 
 next_vertical_column:
-    addi $s0, $s0, 1                  # Next column
+    addi $s0, $s0, 1                   # Next column
     j vertical_scan_loop
 
 end_vertical_scan:
@@ -652,7 +827,7 @@ end_vertical_scan:
     
 #check if have the similar color if so return 1.
 same_group:
-    addi $sp, $sp, -16
+    addi $sp, $sp, -12
     sw $ra, 0($sp)
     sw $a0, 4($sp)
     sw $a1, 8($sp)
@@ -695,7 +870,7 @@ same_group:
     lw $ra, 0($sp)
     lw $a0, 4($sp)
     lw $a1, 8($sp)
-    addi $sp, $sp, 16
+    addi $sp, $sp, 12
     jr $ra
     
 
@@ -712,7 +887,10 @@ clear_marked_blocks:
     la $s0, current_map     # Load base address of current_map into $s0
     lw $s3, BASE_COLOR      # Load background color into $s3
     la $s2, ADDR_DSPL       # Load base address of display into $s2
-    la $s4, direction_map   # load direction map
+    la $s4, connection_direction_map   # load direction map
+    
+    li $t2, 0
+    sw $t2, blocks_cleared
 
 clear_stack_loop:
     lw $s1, stack_top       # Load stack top index into $s1
@@ -726,20 +904,9 @@ clear_stack_loop:
     sll $t1, $t0, 2         # $t1 = index * 4 (word offset in current_map)
     add $t1, $s0, $t1       # $t1 = base_address + offset
     sw $zero, 0($t1)        # Set current_map[index] to 0 (cleared)
-
-    # Clear corresponding pixel in the display
-    # Convert index to row and column
-    divu $t2, $t0, 22       # Perform division (row = index / num_columns)
-    mflo $t2                # Move quotient (row) to $t2
-    mfhi $t3                # Move remainder (column) to $t3
-
-    mul $t4, $t2, 128       # $t4 = row_offset = row * 128 (Y-axis offset)
-    mul $t5, $t3, 4         # $t5 = col_offset = col * 4 (X-axis offset)
- 
-    # Compute display address and clear pixel
-    add $t6, $s2, $t4       # $t6 = base_display + row_offset
-    add $t6, $t6, $t5       # $t6 = display_address
-    sw $s3, 0($t6)          # Set pixel to background color (cleared)
+    
+    li $t2, 1
+    sw $t2, blocks_cleared
     
     #clear the direction map
     
@@ -757,26 +924,22 @@ clear_stack_loop:
 left_clear:
     sub $t8, $t1, 4
     sw $zero, 0($t8)
-    jr $ra
+    j clear_stack_loop
     
 right_clear:
     addi $t8, $t1, 4
     sw $zero, 0($t8)
-    jr $ra
+    j clear_stack_loop
     
 top_clear:
     sub $t8, $t1, 128
     sw $zero, 0($t8)
-    jr $ra
+    j clear_stack_loop
     
 bottom_clear:
     addi $t8, $t1, 128
     sw $zero, 0($t8)
-    jr $ra
-    
-virus_clear:
-
-
+    j clear_stack_loop
     
 
 clear_done:
@@ -787,7 +950,7 @@ clear_done:
     lw $s1, 8($sp)          # Restore $s1 (stack index)
     lw $s0, 4($sp)          # Restore $s0 (current_map base address)
     lw $ra, 0($sp)          # Restore return address
-    addi $sp, $sp, 20       # Restore stack pointer
+    addi $sp, $sp, 24      # Restore stack pointer
 
     jr $ra                  # Return to caller
     
@@ -800,14 +963,18 @@ apply_gravity:
     sw $s2, 12($sp)  # target row 
     sw $s3, 16($sp)  # current block color
     sw $s4, 20($sp)  # direction 
-    sw $s5, 24($sp) 
+    sw $s5, 24($sp)  # 
     sw $s6, 28($sp)  
     sw $s7, 32($sp)  
 
     la $t0, current_map      # load current_map base 
-    la $t1, direction_map    # load direction_map base
+    la $t1, connection_direction_map    # load direction_map base
     la $t2, ADDR_DSPL        # load display address
+    
     li $s0, 0                # start from column 0
+    # Initialize blocks_moved to 0
+    li $t3, 0
+    sw $t3, blocks_moved
 
 
 gravity_column_loop:
@@ -815,19 +982,21 @@ gravity_column_loop:
     li $s1, 23                  # start from the last row 
 
 gravity_row_loop:
-    bgt $s1, 25, next_column   # if row excessed, end it 
+    blt $s1, 0, next_column
+    bgt $s1, 25, move_to_next_row   # if row excessed, end it 
     mul $s6, $s1, 22            
     add $s6, $s6, $s0          
     sll $s6, $s6, 2            
     add $s6, $t0, $s6           # calculate current_map current block 
     lw $s3, 0($s6)              
 
-    add $s7, $t1, $s6           # $s7 = direction_map 
-    lw $s4, 0($s7)              
 
     # if it is empty ,move to next row 
     beq $s3, $zero, move_to_next_row
-
+    mul $s6, $s1, 22            
+    add $s6, $s6, $s0          
+    sll $s6, $s6, 2  
+    add $s4, $t1, $s6
     beq $s4, $zero, handle_independent_block   
     beq $s4, 1, handle_right_connected_block   
     beq $s4, 4, handle_bottom_connected_block  
@@ -854,20 +1023,25 @@ handle_independent_block:
     add $t6, $t1, $s5              
     sw $s4, 0($t6)                
     add $t7, $t1, $s6              
-    sw $zero, 0($t7)              
+    sw $zero, 0($t7)             
+    
+    li $t3, 1
+    sw $t3, blocks_moved
+    
+    j gravity_row_loop 
     
     #update the display address
-    addi $t6, $s1, 6  #calculate the row 
-    mult $t6, $t6, 128 #calculate the offst
-    addi $t7, $s0, 1   # add column 
-    mult $t7, $t7, 4
-    add $t6, $t6, $t7
-    add $t6, $t0, $t6
-    sw $zero, 0($t6)
-    sw $s3, 128($t6)
+    #addi $t6, $s1, 6  #calculate the row 
+    #mult $t6, $t6, 128 #calculate the offst
+    #addi $t7, $s0, 1   # add column 
+    #mult $t7, $t7, 4
+    #add $t6, $t6, $t7
+    #add $t6, $t0, $t6
+    #sw $zero, 0($t6)
+    #sw $s3, 128($t6)
     
 
-    handle_right_connected_block  :
+    handle_right_connected_block:
 
     # Calculate target row (row below current block)
     addi $s2, $s1, 1                # Target row = current row + 1
@@ -911,43 +1085,46 @@ handle_independent_block:
     sw $zero, 0($t9)                # Clear original left direction
     add $t9, $t1, $t8               # Original address in direction_map for right part
     sw $zero, 0($t9)                # Clear original right direction
+    
+    li $t3, 1
+    lw $t3, blocks_moved
 
     # Update display
     # Compute left target display address
-    add $t4, $s2, $s6              # Adjust for starting_y
-    mul $t4, $t4, 128              # Row offset in display
-    add $t5, $s0, $s5              # Adjust for starting_x
-    mul $t5, $t5, 4                # Column offset in display
-    add $t4, $t2, $t4              # Base + row offset
-    add $t4, $t4, $t5              # Full target display address for left part
-    sw $s3, 0($t4)                 # Update target display for left part
+    #add $t4, $s2, $s6              # Adjust for starting_y
+    #mul $t4, $t4, 128              # Row offset in display
+    #add $t5, $s0, $s5              # Adjust for starting_x
+    #mul $t5, $t5, 4                # Column offset in display
+    #add $t4, $t2, $t4              # Base + row offset
+    #add $t4, $t4, $t5              # Full target display address for left part
+    #sw $s3, 0($t4)                 # Update target display for left part
 
     # Clear original left display
-    add $t4, $s1, $s6              # Adjust for starting_y
-    mul $t4, $t4, 128              # Row offset in display
-    add $t5, $s0, $s5              # Adjust for starting_x
-    mul $t5, $t5, 4                # Column offset in display
-    add $t4, $t2, $t4              # Base + row offset
-    add $t4, $t4, $t5              # Full original display address for left part
-    sw $zero, 0($t4)               # Clear original display for left part
+    #add $t4, $s1, $s6              # Adjust for starting_y
+    #mul $t4, $t4, 128              # Row offset in display
+    #add $t5, $s0, $s5              # Adjust for starting_x
+    #mul $t5, $t5, 4                # Column offset in display
+   # add $t4, $t2, $t4              # Base + row offset
+   # add $t4, $t4, $t5              # Full original display address for left part
+    #sw $zero, 0($t4)               # Clear original display for left part
 
     # Compute right target display address
-    add $t6, $s2, $s6              # Adjust for starting_y
-    mul $t6, $t6, 128              # Row offset in display
-    add $t7, $t3, $s5              # Adjust for starting_x
-    mul $t7, $t7, 4                # Column offset in display
-    add $t6, $t2, $t6              # Base + row offset
-    add $t6, $t6, $t7              # Full target display address for right part
-    sw $s3, 0($t6)                 # Update target display for right part
+    #add $t6, $s2, $s6              # Adjust for starting_y
+    #mul $t6, $t6, 128              # Row offset in display
+    #add $t7, $t3, $s5              # Adjust for starting_x
+    #mul $t7, $t7, 4                # Column offset in display
+    #add $t6, $t2, $t6              # Base + row offset
+    #add $t6, $t6, $t7              # Full target display address for right part
+    #sw $s3, 0($t6)                 # Update target display for right part
 
     # Clear original right display
-    add $t6, $s1, $s6              # Adjust for starting_y
-    mul $t6, $t6, 128              # Row offset in display
-    add $t7, $t3, $s5              # Adjust for starting_x
-    mul $t7, $t7, 4                # Column offset in display
-    add $t6, $t2, $t6              # Base + row offset
-    add $t6, $t6, $t7              # Full original display address for right part
-    sw $zero, 0($t6)               # Clear original display for right part
+    #add $t6, $s1, $s6              # Adjust for starting_y
+    #mul $t6, $t6, 128              # Row offset in display
+    #add $t7, $t3, $s5              # Adjust for starting_x
+    #mul $t7, $t7, 4                # Column offset in display
+    #add $t6, $t2, $t6              # Base + row offset
+    #add $t6, $t6, $t7              # Full original display address for right part
+    #sw $zero, 0($t6)               # Clear original display for right part
 
     j gravity_row_loop
     
@@ -978,25 +1155,28 @@ handle_independent_block:
     sw $s4, 0($t7)                  # Copy direction
     add $t7, $t1, $t6               # Original address in direction_map
     sw $zero, 0($t7)                # Clear original direction
+    
+    li $t3, 1
+    lw $t3, blocks_moved
 
     # Update display
     # Compute target display address
-    add $t8, $s2, $s6              # Adjust for starting_y
-    mul $t8, $t8, 128              # Row offset in display
-    add $t9, $s0, $s5              # Adjust for starting_x
-    mul $t9, $t9, 4                # Column offset in display
-    add $t8, $t2, $t8              # Base + row offset
-    add $t8, $t8, $t9              # Full target display address
-    sw $s3, 0($t8)                 # Update target display
+    #add $t8, $s2, $s6              # Adjust for starting_y
+    #mul $t8, $t8, 128              # Row offset in display
+    #add $t9, $s0, $s5              # Adjust for starting_x
+    #mul $t9, $t9, 4                # Column offset in display
+    #add $t8, $t2, $t8              # Base + row offset
+    #add $t8, $t8, $t9              # Full target display address
+    #sw $s3, 0($t8)                 # Update target display
 
     # Clear original display
-    add $t8, $s1, $s6              # Adjust for starting_y
-    mul $t8, $t8, 128              # Row offset in display
-    add $t9, $s0, $s5              # Adjust for starting_x
-    mul $t9, $t9, 4                # Column offset in display
-    add $t8, $t2, $t8              # Base + row offset
-    add $t8, $t8, $t9              # Full original display address
-    sw $zero, 0($t8)               # Clear original display
+    #add $t8, $s1, $s6              # Adjust for starting_y
+    #mul $t8, $t8, 128              # Row offset in display
+    #add $t9, $s0, $s5              # Adjust for starting_x
+    #mul $t9, $t9, 4                # Column offset in display
+    #add $t8, $t2, $t8              # Base + row offset
+    #add $t8, $t8, $t9              # Full original display address
+    #sw $zero, 0($t8)               # Clear original display
 
     j gravity_row_loop
     
@@ -1023,73 +1203,7 @@ gravity_done:
     addi $sp, $sp, 36
     jr $ra
     
-
-
-
     
-    
-    
-    
-
-###############################################################
-# Handle Key Board Input Logic
-###############################################################
-keyboard_input:                     # A key is pressed
-    lw $a0, 4($t0)                  # Load second word from keyboard  
-    
-    beq $a0, 0x77, pressW
-    beq $a0, 0x61, pressA   
-    beq $a0, 0x73, pressS
-    beq $a0, 0x64, pressD
-    
-    b input_ends
-
-pressW:
-    jal determine_can_rotate
-    lw $t1, can_rotate
-    beq $t1, $zero, input_ends                   #t1 == 0 mean can not rotate
-    
-    addi $s2, $s2, 1      # s2 = s2 + 1
-    li $t1, 4             # Load the divisor (4) into $t1
-    divu $s2, $t1         # Unsigned division: LO = quotient, HI = remainder
-    mfhi $s2              # Move the remainder (y % 4) from HI to $t0
-    
-    
-    li $a0, 0             #parameter for play effect sound
-    #jal play_effect_sound
-    
-    b input_ends
-pressA:
-    
-    jal determine_can_move_left
-    lw $t1, can_move_left
-    beq $t1, $zero, input_ends                   #t1 == 0 mean can not move left
-    addi $s0, $s0, -1
-    b input_ends
-pressS:
-    jal determine_can_fall
-    lw $t1, can_fall
-    beq $t1, $zero, falling_ends                   #t1 == 0 mean can not fall
-    addi $s1, $s1, 1
-    b input_ends
-    
-    falling_ends:
-        jal lock_capsule_in_place
-        jal update_direction_map
-        jal initialize_new_capsule
-        jal check_survival
-    
-    b input_ends
-pressD:
-    jal determine_can_move_right
-    lw $t1, can_move_right
-    beq $t1, $zero, input_ends                   #t1 == 0 mean can not move right
-    addi $s0, $s0, 1
-    b input_ends
-    
-###############################################################
-# Handle Game Rule Logic
-#############################################################
 
 initialize_new_capsule:
     lw $s0, initial_x_logical #initialize position of capsule
@@ -1526,6 +1640,9 @@ check_survival:
     jr $ra
 
 end_game:
+    li $a0, 4             #parameter for play effect sound
+    jal play_effect_sound
+    
     li $v0, 10
     syscall
 
