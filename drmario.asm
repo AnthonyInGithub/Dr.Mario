@@ -50,6 +50,9 @@ number_or_virus: .word 8
 current_color_1: .word 0x000000
 current_color_2: .word 0x000000
 
+sound_effect_notes: .word 72, 69, 64, 72, 48  # MIDI numbers for C5, A4, E4, C5, C3
+sound_effect_notes_duration: .word 100, 150, 200, 300, 500
+
 shape_matrix: .word current_color_1, current_color_2, BASE_COLOR, BASE_COLOR,         current_color_1,BASE_COLOR, current_color_2, BASE_COLOR,          current_color_2, current_color_1, BASE_COLOR, BASE_COLOR,             current_color_2,BASE_COLOR, current_color_1, BASE_COLOR,  #Row4
 shape_matrix_row: .word 4
 shape_matrix_color: .word 4
@@ -390,6 +393,29 @@ draw_current_map:
     end_drawing_current_map:
     
     jr $ra
+
+#a0: action type: 0: rotate, 1: dropping(press w), 2: lock_capsule_in_place 3: remove row or column, 4: game_over
+play_effect_sound:
+    la $t1, sound_effect_notes
+    la $t2, sound_effect_notes_duration
+    
+    sll $t3, $a0, 2      # calculate the offset
+    add $t1, $t1, $t3
+    add $t2, $t2, $t3
+    
+    lw $a0, 0($t1)      # retrieve the current note and duration
+    lw $a1, 0($t2)
+    li $a2, 123
+    li $a3, 100
+    
+    li $v0, 31           # Syscall to play sound effect
+    syscall
+    
+    
+    jr $ra
+    
+    
+    
     
     
 
@@ -415,6 +441,11 @@ pressW:
     li $t1, 4             # Load the divisor (4) into $t1
     divu $s2, $t1         # Unsigned division: LO = quotient, HI = remainder
     mfhi $s2              # Move the remainder (y % 4) from HI to $t0
+    
+    
+    li $a0, 0             #parameter for play effect sound
+    #jal play_effect_sound
+    
     b input_ends
 pressA:
     
@@ -432,8 +463,8 @@ pressS:
     
     falling_ends:
         jal lock_capsule_in_place
-        jal initialize_new_capsule
         jal update_direction_map
+        jal initialize_new_capsule
         jal check_survival
     
     b input_ends
@@ -705,8 +736,8 @@ generate_virus:
     li $a0, 0                   # the starting x is not 0 in actual map, but is 0 in logic
     lw $a1, ending_x            # load ending x
     addi $a1, $a1, 1            # random number is not inclusive, so need to add 1 for ending_x
-    lw $a3, starting_x          # load starting x to correctly finding the right x position
-    sub $a1, $a1, $a3
+    lw $t3, starting_x          # load starting x to correctly finding the right x position
+    sub $a1, $a1, $t3
     syscall                     # the return value will be stored in a0
     
     la $t0, current_map         # loading the current map address
@@ -716,12 +747,11 @@ generate_virus:
     li $a0, 0                   # the starting y is not 0, but MIPS only support generate starting from 0, which means we need to manually calculate the random number.
     lw $a1, ending_y                   # load ending y
     addi $a1, $a1, 1
-    lw $a3, starting_y
-    sub $a1, $a1, $a3
+    lw $t3, starting_y
+    sub $a1, $a1, $t3
     syscall                     # the return value will be stored in a0       
     
-    li $a3, 88                #correct offset: 4 * 22(width)
-    mul $a0, $a0, $a3           # calculate y offset in current map and add to t1
+    mul $a0, $a0, 88           # calculate y offset in current map and add to t1, correct offset: 4 * 22(width)
     
     add $t1, $a0, $t1           # t1 is now the offset from current map starting address
     
