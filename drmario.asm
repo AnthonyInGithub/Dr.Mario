@@ -1935,16 +1935,16 @@ draw_score:
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 2
-        sw $t0, 0($t4)
-        sw $t0, 4($t4)
-        sw $t0, 8($t4)
-        sw $t0, 12($t4)
-        sw $t1, 16($t4)
-    
-        addi $t4, $t4, 128  # Move to Row 3
         sw $t1, 0($t4)
         sw $t1, 4($t4)
         sw $t1, 8($t4)
+        sw $t1, 12($t4)
+        sw $t1, 16($t4)
+    
+        addi $t4, $t4, 128  # Move to Row 3
+        sw $t0, 0($t4)
+        sw $t0, 4($t4)
+        sw $t0, 8($t4)
         sw $t1, 12($t4)
         sw $t1, 16($t4)
     
@@ -1952,22 +1952,22 @@ draw_score:
         sw $t1, 0($t4)
         sw $t1, 4($t4)
         sw $t1, 8($t4)
-        sw $t0, 12($t4)
-        sw $t0, 16($t4)
+        sw $t1, 12($t4)
+        sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 5
         sw $t1, 0($t4)
         sw $t1, 4($t4)
-        sw $t1, 8($t4)
-        sw $t1, 12($t4)
-        sw $t1, 16($t4)
+        sw $t0, 8($t4)
+        sw $t0, 12($t4)
+        sw $t0, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 6
         sw $t1, 0($t4)
         sw $t1, 4($t4)
-        sw $t1, 8($t4)
-        sw $t1, 12($t4)
-        sw $t1, 16($t4)
+        sw $t0, 8($t4)
+        sw $t0, 12($t4)
+        sw $t0, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 7
         sw $t1, 0($t4)
@@ -1988,17 +1988,17 @@ draw_score:
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 2
-        sw $t0, 0($t4)
-        sw $t0, 4($t4)
-        sw $t0, 8($t4)
-        sw $t0, 12($t4)
+        sw $t1, 0($t4)
+        sw $t1, 4($t4)
+        sw $t1, 8($t4)
+        sw $t1, 12($t4)
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 3
         sw $t0, 0($t4)
         sw $t0, 4($t4)
         sw $t0, 8($t4)
-        sw $t0, 12($t4)
+        sw $t1, 12($t4)
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 4
@@ -2012,14 +2012,14 @@ draw_score:
         sw $t0, 0($t4)
         sw $t0, 4($t4)
         sw $t0, 8($t4)
-        sw $t0, 12($t4)
+        sw $t1, 12($t4)
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 6
-        sw $t0, 0($t4)
-        sw $t0, 4($t4)
-        sw $t0, 8($t4)
-        sw $t0, 12($t4)
+        sw $t1, 0($t4)
+        sw $t1, 4($t4)
+        sw $t1, 8($t4)
+        sw $t1, 12($t4)
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 7
@@ -2037,21 +2037,21 @@ draw_score:
         sw $t1, 0($t4)      # Row 1
         sw $t0, 4($t4)
         sw $t0, 8($t4)
-        sw $t1, 12($t4)
+        sw $t0, 12($t4)
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 2
         sw $t1, 0($t4)
         sw $t0, 4($t4)
         sw $t0, 8($t4)
-        sw $t1, 12($t4)
+        sw $t0, 12($t4)
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 3
         sw $t1, 0($t4)
         sw $t0, 4($t4)
         sw $t0, 8($t4)
-        sw $t1, 12($t4)
+        sw $t0, 12($t4)
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 4
@@ -2065,21 +2065,21 @@ draw_score:
         sw $t0, 0($t4)
         sw $t0, 4($t4)
         sw $t0, 8($t4)
-        sw $t1, 12($t4)
+        sw $t0, 12($t4)
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 6
         sw $t0, 0($t4)
         sw $t0, 4($t4)
         sw $t0, 8($t4)
-        sw $t1, 12($t4)
+        sw $t0, 12($t4)
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 7
         sw $t0, 0($t4)
         sw $t0, 4($t4)
         sw $t0, 8($t4)
-        sw $t1, 12($t4)
+        sw $t0, 12($t4)
         sw $t1, 16($t4)
         j finish_drawing
     draw_5:
@@ -2102,16 +2102,16 @@ draw_score:
     
         addi $t4, $t4, 128  # Move to Row 3
         sw $t1, 0($t4)
-        sw $t1, 4($t4)
-        sw $t1, 8($t4)
-        sw $t1, 12($t4)
-        sw $t1, 16($t4)
-    
-        addi $t4, $t4, 128  # Move to Row 4
-        sw $t0, 0($t4)
         sw $t0, 4($t4)
         sw $t0, 8($t4)
         sw $t0, 12($t4)
+        sw $t0, 16($t4)
+    
+        addi $t4, $t4, 128  # Move to Row 4
+        sw $t1, 0($t4)
+        sw $t1, 4($t4)
+        sw $t1, 8($t4)
+        sw $t1, 12($t4)
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 5
@@ -2156,27 +2156,27 @@ draw_score:
     
         addi $t4, $t4, 128  # Move to Row 3
         sw $t1, 0($t4)
+        sw $t0, 4($t4)
+        sw $t0, 8($t4)
+        sw $t0, 12($t4)
+        sw $t0, 16($t4)
+    
+        addi $t4, $t4, 128  # Move to Row 4
+        sw $t1, 0($t4)
         sw $t1, 4($t4)
         sw $t1, 8($t4)
         sw $t1, 12($t4)
         sw $t1, 16($t4)
     
-        addi $t4, $t4, 128  # Move to Row 4
-        sw $t1, 0($t4)
-        sw $t0, 4($t4)
-        sw $t0, 8($t4)
-        sw $t0, 12($t4)
-        sw $t1, 16($t4)
-    
         addi $t4, $t4, 128  # Move to Row 5
-        sw $t1, 0($t4)
+        sw $t0, 0($t4)
         sw $t0, 4($t4)
         sw $t0, 8($t4)
         sw $t0, 12($t4)
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 6
-        sw $t1, 0($t4)
+        sw $t0, 0($t4)
         sw $t0, 4($t4)
         sw $t0, 8($t4)
         sw $t0, 12($t4)
@@ -2202,17 +2202,17 @@ draw_score:
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 2
-        sw $t0, 0($t4)
-        sw $t0, 4($t4)
-        sw $t0, 8($t4)
-        sw $t0, 12($t4)
+        sw $t1, 0($t4)
+        sw $t1, 4($t4)
+        sw $t1, 8($t4)
+        sw $t1, 12($t4)
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 3
         sw $t0, 0($t4)
         sw $t0, 4($t4)
         sw $t0, 8($t4)
-        sw $t0, 12($t4)
+        sw $t1, 12($t4)
         sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 4
@@ -2220,28 +2220,28 @@ draw_score:
         sw $t0, 4($t4)
         sw $t0, 8($t4)
         sw $t1, 12($t4)
-        sw $t0, 16($t4)
+        sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 5
         sw $t0, 0($t4)
         sw $t0, 4($t4)
-        sw $t1, 8($t4)
-        sw $t0, 12($t4)
-        sw $t0, 16($t4)
+        sw $t0, 8($t4)
+        sw $t1, 12($t4)
+        sw $t1, 16($t4)
     
         addi $t4, $t4, 128  # Move to Row 6
         sw $t0, 0($t4)
-        sw $t1, 4($t4)
-        sw $t0, 8($t4)
-        sw $t0, 12($t4)
-        sw $t0, 16($t4)
-    
-        addi $t4, $t4, 128  # Move to Row 7
-        sw $t1, 0($t4)
         sw $t0, 4($t4)
         sw $t0, 8($t4)
-        sw $t0, 12($t4)
-        sw $t0, 16($t4)
+        sw $t1, 12($t4)
+        sw $t1, 16($t4)
+    
+        addi $t4, $t4, 128  # Move to Row 7
+        sw $t0, 0($t4)
+        sw $t0, 4($t4)
+        sw $t0, 8($t4)
+        sw $t1, 12($t4)
+        sw $t1, 16($t4)
         j finish_drawing
 
     draw_8:
