@@ -1724,7 +1724,7 @@ update_gravity_threshold:
 
 
 end_update_game_time:
-    jr $ra                            # 返回
+    jr $ra                            # back
 
 
 
