@@ -49,6 +49,14 @@ stack_top: .word 0
 blocks_cleared: .word 0
 blocks_moved: .word 0
 
+game_time: .word 0
+time_interval: .word 600
+gravity_decrement: .word 5
+minimum_gravity_threshold: .word 20
+
+gravity_timer: .word 0  
+gravity_threshold: .word 60  
+
 current_color_1: .word 0x000000
 current_color_2: .word 0x000000
 
@@ -147,6 +155,12 @@ game_loop:
 	#concatenate: easy:4, check_survival
 	#ending:  easy: 5
 	
+	jal update_game_time
+    # update the timer
+    jal timer_update
+    
+    skip_gravity:
+
 	# 3. Sleep
     li $v0, 32
     li $a0, 16        #60 frames per second, so 1000/60 = 16.6
@@ -522,14 +536,11 @@ pressA:
     addi $s0, $s0, -1
     b input_ends
 pressS:
-    jal determine_can_fall
-    lw $t1, can_fall
-    beq $t1, $zero, falling_ends                   #t1 == 0 mean can not fall
-    addi $s1, $s1, 1
-    
     li $a0, 1             #parameter for play effect sound
     jal play_effect_sound
     
+    jal fall
+
     b input_ends
     
     falling_ends:
@@ -913,31 +924,40 @@ clear_stack_loop:
     sll $t1, $t0, 2
     add $t1, $s4, $t1
     lw $t9, 0($t1)
+    beq $t9, 0, ind
+    beq $t9, 5, ind
     beq $t9, 1, left_clear
     beq $t9, 2, right_clear
     beq $t9, 3, top_clear
     beq $t9, 4, bottom_clear
-    sw $zero, 0($t1)
+
     
     j clear_stack_loop      # Continue clearing the next marked block
-
+ind:
+    sw $zero, 0($t1)
+    j clear_stack_loop
+    
 left_clear:
+    sw $zero, 0($t1)
     sub $t8, $t1, 4
     sw $zero, 0($t8)
     j clear_stack_loop
     
 right_clear:
+    sw $zero, 0($t1)
     addi $t8, $t1, 4
     sw $zero, 0($t8)
     j clear_stack_loop
     
 top_clear:
-    sub $t8, $t1, 128
+    sw $zero, 0($t1)
+    sub $t8, $t1, 88
     sw $zero, 0($t8)
     j clear_stack_loop
     
 bottom_clear:
-    addi $t8, $t1, 128
+    sw $zero, 0($t1)
+    addi $t8, $t1, 88
     sw $zero, 0($t8)
     j clear_stack_loop
     
@@ -965,7 +985,7 @@ apply_gravity:
     sw $s4, 20($sp)  # direction 
     sw $s5, 24($sp)  # 
     sw $s6, 28($sp)  
-    sw $s7, 32($sp)  
+    sw $s7, 32($sp)  # direction 
 
     la $t0, current_map      # load current_map base 
     la $t1, connection_direction_map    # load direction_map base
@@ -979,7 +999,7 @@ apply_gravity:
 
 gravity_column_loop:
     bge $s0, 22, gravity_done  # if column excessed, end it
-    li $s1, 23                  # start from the last row 
+    li $s1, 24                  # start from the last row 
 
 gravity_row_loop:
     blt $s1, 0, next_column
@@ -997,16 +1017,17 @@ gravity_row_loop:
     add $s6, $s6, $s0          
     sll $s6, $s6, 2  
     add $s4, $t1, $s6
-    beq $s4, $zero, handle_independent_block   
-    beq $s4, 1, handle_right_connected_block   
-    beq $s4, 4, handle_bottom_connected_block  
+    lw  $s7, 0($s4)
+    beq $s7, $zero, handle_independent_block   
+    beq $s7, 2, handle_right_connected_block   
+    beq $s7, 3, handle_bottom_connected_block  
 
     j move_to_next_row
 
 handle_independent_block:
 
     addi $s2, $s1, 1                # next row 
-    bgt $s2, $t4, move_to_next_row  
+    bgt $s2, 24, move_to_next_row  
 
     mul $s5, $s2, 22
     add $s5, $s5, $s0
@@ -1016,19 +1037,22 @@ handle_independent_block:
     bne $t5, $zero, move_to_next_row # if it is not empty, skip it
 
     # update current_map
-    sw $s3, 0($s5)             
+    sw $s3, 0($s5) 
+    add $s6, $s6, $t0
     sw $zero, 0($s6)           
 
     # update direction_map
     add $t6, $t1, $s5              
-    sw $s4, 0($t6)                
+    sw $s7, 0($t6)                
     add $t7, $t1, $s6              
     sw $zero, 0($t7)             
     
     li $t3, 1
     sw $t3, blocks_moved
     
-    j gravity_row_loop 
+    li $s1, 23                   # Reset $s1 to bottom row
+    j gravity_row_loop
+    
     
     #update the display address
     #addi $t6, $s1, 6  #calculate the row 
@@ -1078,9 +1102,9 @@ handle_independent_block:
 
     # Update direction_map
     add $t9, $t1, $t4               # Target address in direction_map for left part
-    sw $s4, 0($t9)                  # Copy direction for left part
+    sw $s7, 0($t9)                  # Copy direction for left part
     add $t9, $t1, $t6               # Target address in direction_map for right part
-    sw $s4, 0($t9)                  # Copy direction for right part
+    sw $s7, 0($t9)                  # Copy direction for right part
     add $t9, $t1, $t7               # Original address in direction_map for left part
     sw $zero, 0($t9)                # Clear original left direction
     add $t9, $t1, $t8               # Original address in direction_map for right part
@@ -1126,6 +1150,7 @@ handle_independent_block:
     #add $t6, $t6, $t7              # Full original display address for right part
     #sw $zero, 0($t6)               # Clear original display for right part
 
+    li $s1, 23                   # Reset $s1 to bottom row
     j gravity_row_loop
     
     handle_bottom_connected_block:
@@ -1152,7 +1177,7 @@ handle_independent_block:
 
     # Update direction_map
     add $t7, $t1, $t4               # Target address in direction_map
-    sw $s4, 0($t7)                  # Copy direction
+    sw $s7, 0($t7)                  # Copy direction
     add $t7, $t1, $t6               # Original address in direction_map
     sw $zero, 0($t7)                # Clear original direction
     
@@ -1178,6 +1203,7 @@ handle_independent_block:
     #add $t8, $t8, $t9              # Full original display address
     #sw $zero, 0($t8)               # Clear original display
 
+    li $s1, 23                   # Reset $s1 to bottom row
     j gravity_row_loop
     
     
@@ -1203,7 +1229,18 @@ gravity_done:
     addi $sp, $sp, 36
     jr $ra
     
-    
+timer_update:
+    lw $t0, gravity_timer
+    addi $t0, $t0, 1              # gravity_timer += 1
+    sw $t0, gravity_timer
+
+    lw $t1, gravity_threshold
+    bne $t0, $t1, skip_gravity    # if gravity_timer != gravity_threshold，skip it
+
+    sw $zero, gravity_timer       # set gravity_timer to 0
+
+    jal fall
+    j timer_update
 
 initialize_new_capsule:
     lw $s0, initial_x_logical #initialize position of capsule
@@ -1639,12 +1676,57 @@ check_survival:
     end_check_survival:
     jr $ra
 
+fall:
+    addi $sp, $sp, -4           # typical way of calling a function, choose a random color and store in s3
+    sw $ra, 0($sp)              # choose a new color and store it in current color1
+    jal determine_can_fall
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    
+    lw $t1, can_fall
+    beq $t1, $zero, falling_ends                   #t1 == 0 mean can not fall
+    addi $s1, $s1, 1
+    jr $ra
+    
+
 end_game:
     li $a0, 4             #parameter for play effect sound
     jal play_effect_sound
     
     li $v0, 10
     syscall
+
+update_game_time:
+
+    # load current time
+    lw $t0, game_time               
+    addi $t0, $t0, 1                 # game_time += 1
+    sw $t0, game_time                # save current time
+
+    # check if reach the interval 
+    lw $t1, time_interval            # load the time interval 
+    divu $t0, $t1                    # $LO = game_time / time_interval, $HI = game_time % time_interval
+    mfhi $t2                         # $t2 = game_time % time_interval
+    bne $t2, $zero, end_update_game_time  # if reminder is not 0, skip
+
+    # decrease gravity_threshold
+    lw $t3, gravity_threshold         # load gravity_threshold
+    lw $t4, gravity_decrement         # load gravity_decrement
+    subu $t3, $t3, $t4                # gravity_threshold -= gravity_decrement
+
+    # reach gravity_threshold lowest
+    lw $t5, minimum_gravity_threshold # load the lowest
+    bgeu $t3, $t5, update_gravity_threshold  # if gravity_threshold >= minimum_gravity_threshold，update gravity_threshold
+    move $t3, $t5                     # let gravity_threshold = minimum_gravity_threshold
+
+update_gravity_threshold:
+    sw $t3, gravity_threshold         
+
+
+end_update_game_time:
+    jr $ra                            # 返回
+
+
 
         
 
