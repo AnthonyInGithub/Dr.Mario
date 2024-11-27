@@ -162,7 +162,7 @@ game_loop:
 	
 	
 	# methods to implement: canMove, lockCapsuleInPlace, clearLines(lines of 4 in vertical/horizontal direction), check_survival(whether capsule reach top)
-	#feature: easy: 1, 2, 4, 5. Hard: 1, 5
+	#feature: easy: 1, 2, 11, 5. Hard: 1, 5
 	
 	#grouping(Wiliam): easy: 1, 2, clearLines, Hard:1, easy:4
 	#grouping(Anthony): easy5, Hard: 5, canMove, lockCapsuleInPlace, check_survival, generate_virus
@@ -1531,7 +1531,10 @@ generate_virus:
     addi $a1, $a1, 1
     lw $t3, starting_y
     sub $a1, $a1, $t3
+    addi $a1, $a1, -4           # this is for restricting virus to be appeared in first 4 columns
     syscall                     # the return value will be stored in a0       
+    
+    addi $a0, $a0, 4           # this is for restricting virus to be appeared in first 4 columns
     
     mul $a0, $a0, 88           # calculate y offset in current map and add to t1, correct offset: 4 * 22(width)
     
