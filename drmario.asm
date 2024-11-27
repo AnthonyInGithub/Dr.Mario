@@ -56,14 +56,14 @@ pixel_color: .word 0xFFFFFF  # White color for pixels
 game_time: .word 0
 time_interval: .word 600
 gravity_decrement: .word 5
-minimum_gravity_threshold: .word 20
+minimum_gravity_threshold: .word 10
 
 current_score: .word 0 
 score_x_pos: .word 2                
 score_y_pos: .word 1                
 
 gravity_timer: .word 0  
-gravity_threshold: .word 60  
+gravity_threshold: .word 40
 
 next_color_1: .word 0x000000
 next_color_2: .word 0x000000
