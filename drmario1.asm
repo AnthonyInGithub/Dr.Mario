@@ -45,27 +45,12 @@ initial_y: .word 4
 initial_x_logical: .word 10
 initial_y_logical: .word -2
 number_or_virus: .word 5
+
 stack_top: .word 0 
 blocks_cleared: .word 0
 blocks_moved: .word 0
 
-# Define templates for each digit (5x7 pixel matrix, row-major order)
-digit_0: .word 0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110
-digit_1: .word 0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110
-digit_2: .word 0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111
-digit_3: .word 0b01110, 0b10001, 0b00001, 0b00110, 0b00001, 0b10001, 0b01110
-digit_4: .word 0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010
-digit_5: .word 0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110
-digit_6: .word 0b00110, 0b01000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110
-digit_7: .word 0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b10000
-digit_8: .word 0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110
-digit_9: .word 0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00010, 0b01100
-digit_templates: .word digit_0, digit_1, digit_2, digit_3, digit_4, digit_5, digit_6, digit_7, digit_8, digit_9
-
 pixel_color: .word 0xFFFFFF  # White color for pixels
-
-# Temporary storage for decomposed digits
-digit_array: .space 16  # Maximum of 4 digits for the score
 
 
 game_time: .word 0
@@ -619,9 +604,9 @@ clear_virus_loop:
     li $t0, 1
     sw $t0, blocks_cleared
     lw $t1, stack_top
-    lw $t4, current_score         # 加载当前分数
-    add $t4, $t4, $t1             # 累加分数增量
-    sw $t4, current_score         # 存储回当前分数
+    lw $t4, current_score         # load the current score
+    add $t4, $t4, $t1             # add the incresing 
+    sw $t4, current_score         # back to the current score
     # clear the marked block
     jal clear_marked_blocks
 
@@ -648,7 +633,7 @@ initialize_stack:
     li $t9, 0            
     sw $t9, stack_top
     jr $ra
-
+# used to push the stack
 push_to_stack:
     addi $sp, $sp, -4
     
@@ -657,8 +642,8 @@ push_to_stack:
     la $t0, stack_base
     lw $t1, stack_top
     sll $t2, $t1, 2          # $t2 = stack_top * 4 (offset)
-    add $t0, $t0, $t2        # Address to store the new element
-    sw $a0, 0($t0)           # Store the value in $a0 onto the stack
+    add $t0, $t0, $t2        # address to store the new element
+    sw $a0, 0($t0)           # store the value in $a0 onto the stack
     addi $t1, $t1, 1         # stack_top += 1
     sw $t1, stack_top
 
@@ -671,17 +656,17 @@ pop_from_stack:
     sw $ra, 0($sp)
 
     lw $t0, stack_top
-    blez $t0, stack_empty     # If stack_top <= 0, stack is empty
+    blez $t0, stack_empty     # if stack_top <= 0, stack is empty
     addi $t0, $t0, -1         # stack_top -= 1
     sw $t0, stack_top
     la $t1, stack_base
     sll $t2, $t0, 2           # $t2 = stack_top * 4 (offset)
-    add $t1, $t1, $t2         # Address of the top element
-    lw $v0, 0($t1)            # Load the value from the stack into $v0
+    add $t1, $t1, $t2         
+    lw $v0, 0($t1)            # load the value from the stack into $v0
     j pop_done
 
 stack_empty:
-    li $v0, -1                # Return -1 or any invalid value to indicate empty stack
+    li $v0, -1                # return -1 to indicate empty stack,so know it is empty
 
 pop_done:
     lw $ra, 0($sp)
@@ -691,23 +676,23 @@ pop_done:
 scan_for_lines_horizontal:
     addi $sp, $sp, -16
     sw $ra, 0($sp)
-    sw $s0, 4($sp)    # Row index
-    sw $s1, 8($sp)    # Column index
-    sw $s2, 12($sp)   # Match counter
+    sw $s0, 4($sp)    # row index
+    sw $s1, 8($sp)    # column index
+    sw $s2, 12($sp)   # match counter
 
-    la $t0, current_map  # Load the base address of the map
-    li $s0, 0            # Start at row 0
-    li $t1, 22           # Number of columns
-    li $t2, 25           # Number of rows
+    la $t0, current_map  # load the base address of the map
+    li $s0, 0            # start at row 0
+    li $t1, 22           # number of columns
+    li $t2, 25           # number of rows
 
     horizontal_scan_loop:
-        bge $s0, 25, end_horizontal_scan  # If row exceeds max, stop
-        li $s1, 0                          # Reset column index for each row
+        bge $s0, 25, end_horizontal_scan  # if row exceeds max, stop
+        li $s1, 0                          # reset column index for each row
     
     horizontal_check_loop:
-        bge $s1, 22, next_horizontal_row  # If column exceeds max, go to next row
+        bge $s1, 22, next_horizontal_row  # if column exceeds max, go to next row
     
-        # Load current block color
+        # load current block color
         mul $t3, $s0, 22                  # t3 = row * num_columns
         add $t3, $t3, $s1                  # t3 = (row * num_columns) + column
         sll $t3, $t3, 2                    # t3 = t3 * 4 (byte offset)
@@ -716,59 +701,59 @@ scan_for_lines_horizontal:
         add $t3, $t0, $t3                  # t3 = map_base + offset
         lw $t4, 0($t3)                     # Load color
     
-        # Skip if the block is empty
+        # skip if the block is empty
         beq $t4, $zero, next_horizontal_col
     
-        # Match consecutive blocks
-        li $s2, 1                          # Match counter = 1
-        move $t5, $s1                      # Start matching from current column
+        # match consecutive blocks
+        li $s2, 1                          # match counter = 1
+        move $t5, $s1                      # start matching from current column
     
     match_horizontal_blocks:
-        addi $t5, $t5, 1                   # Next column
-        bge $t5, 22, horizontal_match_done # If out of bounds, stop matching
+        addi $t5, $t5, 1                   # next column
+        bge $t5, 22, horizontal_match_done # if out of bounds, stop matching
     
-        # Load next block color
+        # load next block color
         mul $t6, $s0, 22                 # t6 = row * num_columns
         add $t6, $t6, $t5                  # t6 = (row * num_columns) + temp_col
         sll $t6, $t6, 2                    # t6 = t6 * 4 (byte offset)
         add $t6, $t0, $t6                  # t6 = map_base + offset
         lw $t7, 0($t6)                     # Load next color
     
-        # Check if the colors are in the same group
+        # check if the colors are in the same group
         move $a0, $t4
         move $a1, $t7
         jal same_group
-        beqz $v0, horizontal_match_done    # If not in the same group, stop
+        beqz $v0, horizontal_match_done    # if not in the same group, stop
     
-        addi $s2, $s2, 1                   # Increment match counter
+        addi $s2, $s2, 1                   # increment match counter
         j match_horizontal_blocks
     
     horizontal_match_done:
-    blt $s2, 4, next_horizontal_col    # If less than 4 matches, skip
+    blt $s2, 4, next_horizontal_col    # if less than 4 matches, skip
 
-    # Start from the current column ($s1) and mark all matching blocks
+    # start from the current column and mark all matching blocks
     move $t5, $s1                      # $t5 = starting column
     add $t6, $s1, $s2                  # $t6 = ending column (exclusive)
 
     mark_horizontal_blocks:
-    bge $t5, $t6, next_horizontal_col  # If we've marked all blocks, move to next column
+    bge $t5, $t6, next_horizontal_col  # if we've marked all blocks, move to next column
 
-    # Calculate the index of the block to mark
+    # calculate the index of the block to mark
     mul $t7, $s0, 22                   # t7 = row * num_columns
     add $t7, $t7, $t5                  # t7 = (row * num_columns) + column
-    # Push index onto the stack
+    # push index onto the stack
     move $a0, $t7
     jal push_to_stack
 
-    addi $t5, $t5, 1                   # Move to the next column
+    addi $t5, $t5, 1                   # move to the next column
     j mark_horizontal_blocks
         
     next_horizontal_col:
-        addi $s1, $s1, 1                   # Next column
+        addi $s1, $s1, 1                   # next column
         j horizontal_check_loop
     
     next_horizontal_row:
-        addi $s0, $s0, 1                   # Next row
+        addi $s0, $s0, 1                   # next row
         j horizontal_scan_loop
     
     end_horizontal_scan:
@@ -782,65 +767,65 @@ scan_for_lines_horizontal:
 scan_for_lines_vertical:
     addi $sp, $sp, -16
     sw $ra, 0($sp)
-    sw $s0, 4($sp)    # Column index
-    sw $s1, 8($sp)    # Row index
-    sw $s2, 12($sp)   # Match counter
+    sw $s0, 4($sp)    # column index
+    sw $s1, 8($sp)    # orw index
+    sw $s2, 12($sp)   # Mmtch counter
 
-    la $t0, current_map  # Load the base address of the map
-    li $s0, 0            # Start at column 0
+    la $t0, current_map  # load the base address of the map
+    li $s0, 0            # start at column 0
 
 vertical_scan_loop:
-    bge $s0, 22, end_vertical_scan  # If column exceeds max, stop
-    li $s1, 0                       # Reset row index for each column
+    bge $s0, 22, end_vertical_scan  # if column exceeds max, stop
+    li $s1, 0                       # reset row index for each column
 
 vertical_check_loop:
-    bge $s1, 25, next_vertical_column  # If row exceeds max, go to next column
+    bge $s1, 25, next_vertical_column  # if row exceeds max, go to next column
 
-    # Load current block color
+    # load current block color
     mul $t3, $s1, 22                  # t3 = row * num_columns
     add $t3, $t3, $s0                 # t3 = (row * num_columns) + column
     sll $t3, $t3, 2                   # t3 = t3 * 4 (byte offset)
     add $t4, $t0, $t3                 # t4 = map_base + offset
     lw $t5, 0($t4)                    # Load color
 
-    # Skip if the block is empty
+    # skip if the block is empty
     beq $t5,$zero, increment_row
 
-    # Match consecutive blocks
-    li $s2, 1                         # Match counter = 1
-    move $t6, $s1                     # Start matching from current row
+    # match consecutive blocks
+    li $s2, 1                         # match counter = 1
+    move $t6, $s1                     # start matching from current row
 
 match_vertical_blocks:
-    addi $t6, $t6, 1                  # Next row
-    bge $t6, 25, vertical_match_done  # If out of bounds, stop matching
+    addi $t6, $t6, 1                  # next row
+    bge $t6, 25, vertical_match_done  # if out of bounds, stop matching
 
-    # Load next block color
+    # load next block color
     mul $t7, $t6, 22                  # t7 = row * num_columns
     add $t7, $t7, $s0                 # t7 = (row * num_columns) + column
     sll $t7, $t7, 2                   # t7 = t7 * 4 (byte offset)
     add $t8, $t0, $t7                 # t8 = map_base + offset
     lw $t9, 0($t8)                    # Load next color
 
-    # Check if the colors are in the same group
+    # check if the colors are in the same group
     move $a0, $t5
     move $a1, $t9
     jal same_group
-    beq $v0, $zero, vertical_match_done     # If not in the same group, stop
+    beq $v0, $zero, vertical_match_done     # if it  not in the same group, stop
 
-    addi $s2, $s2, 1                  # Increment match counter
+    addi $s2, $s2, 1                  # increment match counter
     j match_vertical_blocks
 
 vertical_match_done:
-    blt $s2, 4, increment_row     # If less than 4 matches, skip
+    blt $s2, 4, increment_row     # if it less than 4 matches, skip
 
     # Mark all matching blocks
     move $t6, $s1                      # $t6 = starting row
     add $t7, $s1, $s2                  # $t7 = ending row (exclusive)
 
 mark_vertical_blocks:
-    bge $t6, $t7, increment_row        # If we've marked all blocks, move to next row
+    bge $t6, $t7, increment_row        # if we've marked all blocks, move to next row
 
-    # Calculate the index of the block to mark
+    # calculate the index of the block to mark
     mul $t8, $t6, 22                   # t8 = row * num_columns
     add $t8, $t8, $s0                  # t8 = (row * num_columns) + column
 
@@ -868,7 +853,7 @@ end_vertical_scan:
     jr $ra
 
     
-#check if have the similar color if so return 1.
+# check if have the similar color if so return 1.
 same_group:
     addi $sp, $sp, -12
     sw $ra, 0($sp)
@@ -918,35 +903,35 @@ same_group:
     
 
 clear_marked_blocks:
-    # Save $s registers on the stack
+
     addi $sp, $sp, -24
-    sw $ra, 0($sp)          # Save return address
-    sw $s0, 4($sp)          # Save $s0 (base address of current_map)
-    sw $s1, 8($sp)          # Save $s1 (stack index)
-    sw $s2, 12($sp)         # Save $s2 (calculated display address)
-    sw $s3, 16($sp)         # Save $s3 (background color)
+    sw $ra, 0($sp)         
+    sw $s0, 4($sp)          
+    sw $s1, 8($sp)         
+    sw $s2, 12($sp)       
+    sw $s3, 16($sp)        
     sw $s4, 20($sp)
 
-    la $s0, current_map     # Load base address of current_map into $s0
-    lw $s3, BASE_COLOR      # Load background color into $s3
-    la $s2, ADDR_DSPL       # Load base address of display into $s2
-    la $s4, connection_direction_map   # load direction map
+    la $s0, current_map     
+    lw $s3, BASE_COLOR     
+    la $s2, ADDR_DSPL       
+    la $s4, connection_direction_map   
     
     li $t2, 0
     sw $t2, blocks_cleared
 
 clear_stack_loop:
-    lw $s1, stack_top       # Load stack top index into $s1
-    blez $s1, clear_done    # If stack is empty (stack_top <= 0), finish clearing
+    lw $s1, stack_top       # load stack top index into $s1
+    blez $s1, clear_done    # if stack is empty (stack_top <= 0), finish clearing
 
-    # Pop the top index from the stack
+    # pop the top index from the stack
     jal pop_from_stack
-    move $t0, $v0           # Store popped index in $t0
+    move $t0, $v0           # store popped index in $t0
 
-    # Clear corresponding block in current_map
+    # clear corresponding block in current_map
     sll $t1, $t0, 2         # $t1 = index * 4 (word offset in current_map)
     add $t1, $s0, $t1       # $t1 = base_address + offset
-    sw $zero, 0($t1)        # Set current_map[index] to 0 (cleared)
+    sw $zero, 0($t1)        # set current_map[index] to 0 to clear
     
     li $t2, 1
     sw $t2, blocks_cleared
@@ -964,7 +949,7 @@ clear_stack_loop:
     beq $t9, 4, bottom_clear
 
     
-    j clear_stack_loop      # Continue clearing the next marked block
+    j clear_stack_loop      # continue clearing the next marked block
 ind:
     sw $zero, 0($t1)
     j clear_stack_loop
@@ -995,16 +980,16 @@ bottom_clear:
     
 
 clear_done:
-    # Restore $s registers from the stack
+    # restore $s registers from the stack
     lw $s4, 20($sp)
-    lw $s3, 16($sp)         # Restore $s3 (background color)
-    lw $s2, 12($sp)         # Restore $s2 (display address)
-    lw $s1, 8($sp)          # Restore $s1 (stack index)
-    lw $s0, 4($sp)          # Restore $s0 (current_map base address)
-    lw $ra, 0($sp)          # Restore return address
-    addi $sp, $sp, 24      # Restore stack pointer
+    lw $s3, 16($sp)        
+    lw $s2, 12($sp)   
+    lw $s1, 8($sp)          
+    lw $s0, 4($sp)          
+    lw $ra, 0($sp)         
+    addi $sp, $sp, 24    
 
-    jr $ra                  # Return to caller
+    jr $ra                  # return 
     
 apply_gravity:
     # save register
@@ -1099,156 +1084,100 @@ handle_independent_block:
 
     handle_right_connected_block:
 
-    # Calculate target row (row below current block)
-    addi $s2, $s1, 1                # Target row = current row + 1
-    bge $s2, 24, move_to_next_row   # If target row exceeds boundary, skip
+    # calculate target row (row below current block)
+    addi $s2, $s1, 1                # target row = current row + 1
+    bge $s2, 24, move_to_next_row   # if target row exceeds boundary, skip
 
-    # Check if space below both parts is empty
+    # check if space below both parts is empty
     mul $t4, $s2, 22
     add $t4, $t4, $s0
     sll $t4, $t4, 2
-    add $t4, $t0, $t4               # Target address in current_map for left part
-    lw $t5, 0($t4)                  # Check left part below
+    add $t4, $t0, $t4               # target address in current_map for left part
+    lw $t5, 0($t4)                  # check left part below
     bne $t5, $zero, move_to_next_row
 
     mul $t6, $s2, 22
     add $t6, $t6, $t3
     sll $t6, $t6, 2
-    add $t6, $t0, $t6               # Target address in current_map for right part
-    lw $t5, 0($t6)                  # Check right part below
+    add $t6, $t0, $t6               # target address in current_map for right part
+    lw $t5, 0($t6)                  # check right part below
     bne $t5, $zero, move_to_next_row
 
-    # Update current_map
-    sw $s3, 0($t4)                  # Move left part down
-    sw $s3, 0($t6)                  # Move right part down
+    # update current_map
+    sw $s3, 0($t4)                  # move left part down
+    sw $s3, 0($t6)                  # move right part down
     mul $t7, $s1, 22
     add $t7, $t7, $s0
     sll $t7, $t7, 2
     add $t7, $t0, $t7
-    sw $zero, 0($t7)                # Clear original left position
+    sw $zero, 0($t7)                # clear original left position
     mul $t8, $s1, 22
     add $t8, $t8, $t3
     sll $t8, $t8, 2
     add $t8, $t0, $t8
-    sw $zero, 0($t8)                # Clear original right position
+    sw $zero, 0($t8)                # clear original right position
 
     # Update direction_map
-    add $t9, $t1, $t4               # Target address in direction_map for left part
-    sw $s7, 0($t9)                  # Copy direction for left part
-    add $t9, $t1, $t6               # Target address in direction_map for right part
-    sw $s7, 0($t9)                  # Copy direction for right part
-    add $t9, $t1, $t7               # Original address in direction_map for left part
-    sw $zero, 0($t9)                # Clear original left direction
-    add $t9, $t1, $t8               # Original address in direction_map for right part
-    sw $zero, 0($t9)                # Clear original right direction
+    add $t9, $t1, $t4              
+    sw $s7, 0($t9)                  
+    add $t9, $t1, $t6               
+    sw $s7, 0($t9)                
+    add $t9, $t1, $t7              
+    sw $zero, 0($t9)                
+    add $t9, $t1, $t8          
+    sw $zero, 0($t9)                
     
     li $t3, 1
     lw $t3, blocks_moved
 
-    # Update display
-    # Compute left target display address
-    #add $t4, $s2, $s6              # Adjust for starting_y
-    #mul $t4, $t4, 128              # Row offset in display
-    #add $t5, $s0, $s5              # Adjust for starting_x
-    #mul $t5, $t5, 4                # Column offset in display
-    #add $t4, $t2, $t4              # Base + row offset
-    #add $t4, $t4, $t5              # Full target display address for left part
-    #sw $s3, 0($t4)                 # Update target display for left part
-
-    # Clear original left display
-    #add $t4, $s1, $s6              # Adjust for starting_y
-    #mul $t4, $t4, 128              # Row offset in display
-    #add $t5, $s0, $s5              # Adjust for starting_x
-    #mul $t5, $t5, 4                # Column offset in display
-   # add $t4, $t2, $t4              # Base + row offset
-   # add $t4, $t4, $t5              # Full original display address for left part
-    #sw $zero, 0($t4)               # Clear original display for left part
-
-    # Compute right target display address
-    #add $t6, $s2, $s6              # Adjust for starting_y
-    #mul $t6, $t6, 128              # Row offset in display
-    #add $t7, $t3, $s5              # Adjust for starting_x
-    #mul $t7, $t7, 4                # Column offset in display
-    #add $t6, $t2, $t6              # Base + row offset
-    #add $t6, $t6, $t7              # Full target display address for right part
-    #sw $s3, 0($t6)                 # Update target display for right part
-
-    # Clear original right display
-    #add $t6, $s1, $s6              # Adjust for starting_y
-    #mul $t6, $t6, 128              # Row offset in display
-    #add $t7, $t3, $s5              # Adjust for starting_x
-    #mul $t7, $t7, 4                # Column offset in display
-    #add $t6, $t2, $t6              # Base + row offset
-    #add $t6, $t6, $t7              # Full original display address for right part
-    #sw $zero, 0($t6)               # Clear original display for right part
-
-    li $s1, 23                   # Reset $s1 to bottom row
+    li $s1, 23                   # reset $s1 to bottom row
     j gravity_row_loop
     
     handle_bottom_connected_block:
 
-    # Calculate target row (row below current block)
-    addi $s2, $s1, 1                # Target row = current row + 1
-    bge $s2, 24, move_to_next_row   # If target row exceeds boundary, skip
+    #calculate target row (row below current block)
+    addi $s2, $s1, 1               
+    bge $s2, 24, move_to_next_row   # if target row exceeds boundary, skip
 
-    # Check if space below is empty
+    # check if space below is empty
     mul $t4, $s2, 22
     add $t4, $t4, $s0
     sll $t4, $t4, 2
-    add $t4, $t0, $t4               # Target address in current_map
+    add $t4, $t0, $t4               
     lw $t5, 0($t4)                  # Check below block
-    bne $t5, $zero, move_to_next_row # If target position is not empty, skip
+    bne $t5, $zero, move_to_next_row # if target position is not empty, skip
 
-    # Update current_map
-    sw $s3, 0($t4)                  # Move current block down
+    # update current_map
+    sw $s3, 0($t4)                  # move current block down
     mul $t6, $s1, 22
     add $t6, $t6, $s0
     sll $t6, $t6, 2
-    add $t6, $t0, $t6               # Original address in current_map
-    sw $zero, 0($t6)                # Clear original position
+    add $t6, $t0, $t6              
+    sw $zero, 0($t6)                # clear original position
 
-    # Update direction_map
-    add $t7, $t1, $t4               # Target address in direction_map
-    sw $s7, 0($t7)                  # Copy direction
-    add $t7, $t1, $t6               # Original address in direction_map
-    sw $zero, 0($t7)                # Clear original direction
+    # update direction_map
+    add $t7, $t1, $t4            
+    sw $s7, 0($t7)                  # copy direction
+    add $t7, $t1, $t6               
+    sw $zero, 0($t7)                # clear original direction
     
     li $t3, 1
     lw $t3, blocks_moved
 
-    # Update display
-    # Compute target display address
-    #add $t8, $s2, $s6              # Adjust for starting_y
-    #mul $t8, $t8, 128              # Row offset in display
-    #add $t9, $s0, $s5              # Adjust for starting_x
-    #mul $t9, $t9, 4                # Column offset in display
-    #add $t8, $t2, $t8              # Base + row offset
-    #add $t8, $t8, $t9              # Full target display address
-    #sw $s3, 0($t8)                 # Update target display
-
-    # Clear original display
-    #add $t8, $s1, $s6              # Adjust for starting_y
-    #mul $t8, $t8, 128              # Row offset in display
-    #add $t9, $s0, $s5              # Adjust for starting_x
-    #mul $t9, $t9, 4                # Column offset in display
-    #add $t8, $t2, $t8              # Base + row offset
-    #add $t8, $t8, $t9              # Full original display address
-    #sw $zero, 0($t8)               # Clear original display
-
-    li $s1, 23                   # Reset $s1 to bottom row
+    li $s1, 23                   # reset $s1 to bottom row
     j gravity_row_loop
     
     
 move_to_next_row:
-    addi $s1, $s1, -1                   # Move to the next row
+    addi $s1, $s1, -1                   # move to the next row
     j gravity_row_loop
 
 next_column:
-    addi $s0, $s0, 1                    # Move to the next column
+    addi $s0, $s0, 1                    # move to the next column
     j gravity_column_loop
 
 gravity_done:
-    # Restore registers
+    # restore registers
     lw $s7, 32($sp)
     lw $s6, 28($sp)
     lw $s5, 24($sp)
